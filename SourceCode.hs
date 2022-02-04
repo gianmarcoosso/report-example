@@ -20,8 +20,8 @@ instance Show Frm where
   show (C f1 f2)  = "(" ++ show f1 ++ "*" ++ show f2 ++ ")"
   show (D f1 f2)     = "(" ++ show f1 ++ "+" ++ show f2 ++ ")"
 
-
-atoms :: [Int]    --defines an instance of arbitrary for formulas. this is needed to use quickcheck 
+--defines an instance of arbitrary for formulas. this is needed to use quickcheck
+atoms :: [Int]    
 atoms = [1..9]
 instance Arbitrary Frm where
   arbitrary = sized randomForm where
@@ -42,21 +42,22 @@ instance Show SFrm where
   show (S (F, f))  = "F" ++ show f
   show (S (Fc, f)) = "Fc" ++ show f
 
-
-subf :: Frm -> [Frm] -- for every composite formula, it gives the list of arguments of its main connective. useless for atoms
+-- for every composite formula, it gives the list of arguments of its main connective. useless for atoms
+subf :: Frm -> [Frm] 
 subf (P x) = [P x]
 subf (N f) = [f]
 subf (C f g) = [f,g]
 subf (D f g) = [f,g]
 
+--a node is stored as an index (a binary sequence saying where in the binary tree it is)
+--followed by 6 lists of formulas/signed formulas. the first three lists are meant to contain,
+--respectively, all true, false and provably false literals generated so far.
+--the remaining three lists contain pending formulas, organized based on theirs structure:
+--the first contains unproblematic formulas which don't lead to any cancellation,
+--the second contains problematic false negations, which lead to cancellation of other false formulas
+--the third contains problematic provably false formulas, which also lead to cancellation
 
-data Node  = Nd Index [Frm] [Frm] [Frm] [SFrm] [SFrm] [SFrm] deriving Show --a node is stored as an index (a binary sequence saying where in the binary tree it is)
-                                                                           --followed by 6 lists of formulas/signed formulas. the first three lists are meant to contain,
-                                                                           --respectively, all true, false and provably false literals generated so far.
-                                                                           --the remaining three lists contain pending formulas, organized based on theirs structure:
-                                                                           --the first contains unproblematic formulas which don't lead to any cancellation,
-                                                                           --the second contains problematic false negations, which lead to cancellation of other false formulas
-                                                                           --the third contains problematic provably false formulas, which also lead to cancellation
+data Node  = Nd Index [Frm] [Frm] [Frm] [SFrm] [SFrm] [SFrm] deriving Show 
 instance Eq Node where
   Nd i p n f tp fp fcp == Nd j d s a ta fa fca = i==j && p==d && n==s && f==a && tp==ta && fp==fa && fcp ==fca
 
@@ -64,33 +65,41 @@ instance Eq Node where
 type Tableau = [Node]
 
 --Specification of types of rules
-
-rule1 :: SFrm -> Bool                  --rules of type 1 are those which don't lead to splitting and such that the formula is decomposed into its 
-rule1 (S (T, C _ _))  = True         --subformulas, which keep the same sign
+--rules of type 1 are those which don't lead to splitting and such that the formula is decomposed into its
+--subformulas, which keep the same sign
+rule1 :: SFrm -> Bool                  
+rule1 (S (T, C _ _))  = True         
 rule1 (S (F, D _ _))  = True
 rule1 (S (Fc, D _ _)) = True
 rule1 _                 = False
 
-rule2 :: SFrm -> Bool                  --rules of type 2 are those which lead to splitting and such that each of the resulting branches keeps one 
-rule2 (S (T, D _ _))  = True         --of the two subformulas, with the same sign
+ --rules of type 2 are those which lead to splitting and such that each of the resulting branches keeps one
+ --of the two subformulas, with the same sign
+rule2 :: SFrm -> Bool                   
+rule2 (S (T, D _ _))  = True         
 rule2 (S (F, C _ _))  = True
 rule2 _                 = False
 
-falseneg :: SFrm -> Bool               --rules for false negation, they lead to no splitting, cancellation of previous false formulas and they 
-falseneg (S (F, N _))  = True        --turn the sign of the formula into a T
+--rules for false negation, they lead to no splitting, cancellation of previous false formulas and they 
+--turn the sign of the formula into a T
+falseneg :: SFrm -> Bool               
+falseneg (S (F, N _))  = True        
 falseneg (S (Fc, N _)) = True
 falseneg _               = False
 
-prfalseconj :: SFrm -> Bool            --rule for provably false conjunction, leads to splitting and cancellation of previous false formulas
-prfalseconj (S (Fc, C _ _)) = True   -- the subformulas keep their sign
+--rule for provably false conjunction, leads to splitting and cancellation of previous false formulas
+-- the subformulas keep their sign
+prfalseconj :: SFrm -> Bool            
+prfalseconj (S (Fc, C _ _)) = True   
 prfalseconj _                 = False
 
-trueneg :: SFrm -> Bool                --rule for true negation
+--rule for true negation
+trueneg :: SFrm -> Bool                
 trueneg (S (T, N _)) = True
 trueneg _              = False
 
-
-deletewarning :: SFrm -> Bool          -- function which tells you which rules lead to deletion of previous formulas and are dangerous 
+-- function which tells you which rules lead to deletion of previous formulas and are dangerous 
+deletewarning :: SFrm -> Bool           
 deletewarning (S (x, y)) = prfalseconj (S (x, y)) || falseneg (S (x, y))
 
 
@@ -158,59 +167,79 @@ step (Nd i positives _ falses [] [] (f:fs))
   | prfalseconj f = [[Nd (i++[0]) positives [] falses [makefalse (head (subf (removesign f))) | not (deletewarning (makefalse (head (subf (removesign f)))) )] [] ([makefalse (head (subf (removesign f))) | deletewarning (makefalse (head (subf (removesign f)))) ]++ fs ), Nd (i++[1]) positives [] falses [makefalse (last (subf (removesign f))) | not (deletewarning (makefalse (last (subf (removesign f)))) )] [] ([makefalse (last (subf (removesign f))) | deletewarning (makefalse (last (subf (removesign f)))) ]++fs) ]]
   | trueneg f = undefined
 
-expanded :: Node -> Bool                             --function which checks whether a node is expanded
+--function which checks whether a node is expanded
+expanded :: Node -> Bool                             
 expanded (Nd _ _ _ _ [] [] [])  = True
 expanded  _                                = False
 
-badNode :: Node -> Bool                              --function which checks whether a node will be expanded in a way that leads to a cancellation of formulas
-badNode (Nd _ _ _ _ [] x _) | not(null x) = True              --these nodes must be treated differently
+--function which checks whether a node will be expanded in a way that leads to a cancellation of formulas
+--these nodes must be treated differently
+badNode :: Node -> Bool                              
+badNode (Nd _ _ _ _ [] x _) | not(null x) = True             
                             | otherwise   = False
 badNode _                                 = False
 
-badTab :: Tableau -> Bool                            --function which checks whether a tableau has at least one bad node
+--function which checks whether a tableau has at least one bad node
+badTab :: Tableau -> Bool                            
 badTab = any badNode
 
-firstbad :: Tableau -> Node                          --function which detects the first bad node of a tableau, if there is one, and is undefined otherwise
+--function which detects the first bad node of a tableau, if there is one, and is undefined otherwise
+firstbad :: Tableau -> Node                        
 firstbad [] = undefined
 firstbad (n : ns)
   | not (badTab (n:ns)) = undefined
   | badNode n = n
   | otherwise = firstbad ns
 
-removebad :: Tableau -> Tableau                      --function which removes the first bad node out of a bad tableau
+--function which removes the first bad node out of a bad tableau
+removebad :: Tableau -> Tableau                      
 removebad tab | badTab tab = tab \\ [firstbad tab]
               | otherwise = tab
 
-expand :: Tableau -> [Tableau]                                  --function which, given a tableau, outputs its "one step" nondeterministic expansion
+--function which, given a tableau, outputs its "one step" nondeterministic expansion
+expand :: Tableau -> [Tableau]                                 
 expand tab | not (badTab tab) = [concatMap (head . step) tab]
            | otherwise = [ head (step (firstbad tab)) ++ removebad tab, last (step (firstbad tab)) ++ removebad tab ]
 
-pairify :: [Tableau] -> [(Tableau, Tableau)]                        --function which splits a given tableau in its expanded and nonexpanded sections
+--function which splits a given tableau in its expanded and nonexpanded sections
+pairify :: [Tableau] -> [(Tableau, Tableau)]                        
 pairify = map \x-> (filter (not . expanded) x , filter expanded x)
 
-solve :: [(Tableau, Tableau)] -> Bool                               --recursive function which expands a tableau fully until a decision on the validity
-solve []        = False                                             --of the formula in question can be made
+ --recursive function which expands a tableau fully until a decision on the validity
+ --of the formula in question can be made
+solve :: [(Tableau, Tableau)] -> Bool                              
+solve []        = False                                             
 solve (p:pairs) | null (snd p) && not (null (fst p)) = solve (pairify (expand(fst p))++ pairs)
                 | null (snd p) && null (fst p) = True
                 | otherwise = solve pairs || False
 
-initintuitTab :: Frm -> Tableau                                     --function which, given a formula, initializes the corresponding intuitionistic tableau
-initintuitTab  f = [Nd [] [] [] [] [S (F, f)] [] []]                --which will later be fed to solve
+--function which, given a formula, initializes the corresponding intuitionistic tableau
+--which will later be fed to solve
+initintuitTab :: Frm -> Tableau                                     
+initintuitTab  f = [Nd [] [] [] [] [S (F, f)] [] []]                
 
-intuitthm :: Frm -> Bool                                            --function which determines theoremhood for an intuitionistic formula
+--function which determines theoremhood for an intuitionistic formula
+intuitthm :: Frm -> Bool                                           
 intuitthm f = solve [(initintuitTab f, [])]
 
-intuitsat :: Frm -> Bool                                            --function which determines satisfiability of an intuitionistic formula
+--function which determines satisfiability of an intuitionistic formula
+intuitsat :: Frm -> Bool                                            
 intuitsat f = not ( intuitthm (N f))
 
-initclassTab:: Frm -> Tableau                                       --function which, given a formula, initializes the corresponding classical tableau
-initclassTab  f = [Nd [] [] [] [] [S (Fc, f)] [] []]              --which will later be fed to solve
+--function which, given a formula, initializes the corresponding classical tableau
+--which will later be fed to solve
+initclassTab:: Frm -> Tableau                                       
+initclassTab  f = [Nd [] [] [] [] [S (Fc, f)] [] []]
 
-classthm :: Frm -> Bool                                             --function which determines theoremhood for an classical formula
+--function which determines theoremhood for an classical formula
+classthm :: Frm -> Bool                                             
 classthm f = solve [(initclassTab f, [])]
 
-classsat :: Frm -> Bool                                             --function which determines satisfiability of an classical formula
+--function which determines satisfiability of an classical formula
+classsat :: Frm -> Bool                                             
 classsat f = not (classthm (N f))
 
-glivenko :: Frm -> Bool                                             --property which encodes glivenko's theorem. can be used with quickCheck
-glivenko f = classthm f == intuitthm (N (N f))                      --as quickCheck (\f -> glivenko f)
+--property which encodes glivenko's theorem. can be used with quickCheck
+--as quickCheck (\f -> glivenko f)
+glivenko :: Frm -> Bool                                             
+glivenko f = classthm f == intuitthm (N (N f))                      
