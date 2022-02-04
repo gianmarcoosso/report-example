@@ -15,12 +15,6 @@ dependencies:
 library:
   source-dirs: lib
 
-executables:
-  myprogram:
-    main: Main.lhs
-    source-dirs: exec
-    dependencies:
-      - report
 
 tests:
   simpletests:
