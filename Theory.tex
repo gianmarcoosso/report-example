@@ -1,0 +1,104 @@
+
+\section{Theory}
+
+We used \cite{main} as a reference for the tableau rules. In the following we shall give an overview of the calculus. 
+
+The calculus exploits signed formulas, in particular it uses three signs: $T,F,F_C$. $T \varphi$ intuitively stands for \say{we have a proof of $\varphi$}, $F \varphi$ stands for \say{we don't have a proof of $\varphi$ at the moment} and $F_C \varphi$ stands for \say{$\varphi$ has been refuted}.
+To better understand what this means we can consider the semantics for intuitionistic logic based on intuitionistic Kripke models (IKVs in short).
+\begin{definition}
+    An intuitionistic Kripke model is a triple $(W,R,V)$ such that:
+    \begin{itemize}
+        \item $W$ is a nonempty set,
+        \item $R$ is a weak partial order, i.e. a transitive, reflexive and antisymmetric relation,
+        \item $V$ is a function $V : Prop \rightarrow \mathcal{P}(W)$ such that for all $w,w' \in W$ and all $p \in Prop$ $w \in V(p) \land wRw'$ implies $w' \in V(p)$ (i.e. the range of $V$ is given by the set of upsets of $(W,R)$).
+    \end{itemize}
+\end{definition}
+
+One can then define a translation from intuitionistic propositional formulas into basic modal logic formulas as follows, given an intuitionistic propositional formula $\varphi$,
+\begin{itemize}
+    \item if $\varphi=p$, $T(\varphi)=p$
+    \item if $\varphi= \chi \land \psi$, $T(\varphi)= T(\chi) \land T(\psi)$
+    \item if $\varphi= \chi \lor \psi$, $T(\varphi)= T(\chi) \lor T(\psi)$
+    \item if $\varphi=\psi \rightarrow \chi$, $T(\varphi)=\square (T(\psi) \rightarrow T(\chi))$
+    \item if $\varphi= \neg \psi$, $T(\varphi)= \square (\neg T(\psi))$
+\end{itemize}
+
+One finally obtains a semantics for intuitionistic logic by stipulating that, given an intuitionistic Kripke model $(W,R,V)$ and $w \in W$, an intuitionistic formula $\varphi$ holds at $w$ ($w \vDash \varphi$) if and only if $w \vDash T(\varphi)$ in the standard Kripke semantics.
+Accordingly, an intuitionistic formula $\varphi$ is valid if it holds at all worlds in every intuitionistic Kripke model, and it is satisfiable if there's some IKV containing a world where $\varphi$ holds. \\
+Given an intuitionistic propositional formula $\varphi$, an IKV $(W,R,V)$ and $w \in W$, one can think of the sign of $\varphi$ at $w$ as follows:
+\begin{itemize}
+    \item $\varphi$ has sign $T$ if $w \vDash \varphi$,
+    \item $\varphi$ has sign $F$ if it is not the case that $w \vDash \varphi$,
+    \item $\varphi$ has sign $F_C$ if $w \vDash \neg \varphi$.
+\end{itemize}
+
+The rules which are proposed in \cite{main} are the following:
+
+\begin{table}[h]
+\Large
+\centering
+$\begin{array}{ ccc }
+\toprule
+\text{T rules} & \text{F rules} & F_C \text{rules} \\
+& & \\
+\midrule
+\frac{S, T(\varphi \wedge \psi)}{S,T\varphi,T\psi}& \frac{S, F(\varphi \wedge \psi)}{S,F\varphi/S,F\psi} & \frac{S,F_C(\varphi \wedge \psi)}{S_c,F_C\varphi/S_c,F_C\psi}\\ 
+& & \\
+\frac{S, T(\varphi \vee \psi)}{S,T\varphi/S,T\psi} & \frac{S, F(\varphi \vee \psi)}{S,F\varphi,F\psi} & \frac{S,F_C(\varphi \vee \psi)}{S,F_C\varphi,F_C\psi}\\
+& & \\
+\frac{S, T(\neg \varphi)}{S,F_C\varphi} & \frac{S, F(\neg \varphi)}{S_c,T\varphi} & \frac{S, F_C(\neg \varphi)}{S_c,T\varphi}\\
+\bottomrule
+\end{array}$
+\end{table}
+
+where we have left out rules for implication as we restricted our implementation to the implication-free fragment of intuitionistic propositional logic. This choice was made as the rules presented in \cite{main} for intuitionistic implication make it possible to have infinite loops, whereas other sources such as \cite{imp} present more than one rule for implication, depending on the structure of the antecedent and consequent. In both cases, it would have been excessively complicated (and probably not very interesting from the logical and programming point of view) to obtain a complete and always terminating system.
+
+We divide these nine rules into different groups:
+
+\begin{enumerate}
+    \item Rule$_1$: $T\wedge$,$F\vee$ and $F_C\vee$; they don't lead to splitting and the formula is decomposed into its components, which keep their original sign. 
+    \item Rule$_2$: $T\vee$ and $F\wedge$; they lead to splitting and each of the resulting branches keeps a subformula, with the original sign. 
+    \item Falseneg: $F\neg$ and $F_C\neg$; they bring us from $S$ to $S_c$, and the resulting subformula is a $T$ formula. 
+    \item Trueneg: $T\neg$; it deletes negation and it changes the sign to $F_C$.
+    \item Prfalseconj: $F_C\wedge$ (provably false conjunction); it leads to splitting and cancellation of previous false formulas. The subformulas keep the same sign. 
+\end{enumerate}
+
+Rules in Rule$_1$ and Rule$_2$  are intuitive. The rules for false/provably false negation and for provably false conjunction both lead from a set of formulae $S$ to another set, $S_c$, which is $S \setminus \{F \varphi|F\varphi \in S\}$. The idea is that every time we apply such rules we have to delete from our set of remaining formulas all false formulas. This leads to a problem: if one has more than one pending $F$ formula, and one decides to expand a tableau node by applying a Falseneg or Prfalseconj rule, one could delete formulas which were needed for the tableau branch to close. Therefore it is necessary to explore all possibilities, i.e. applying the rules to the formulas in all the orders possible. This problem will be reflected on the implementation, which becomes slightly harder than one would expect.
+
+There's a close correspondence between these rules and the Kripke model semantics for intuitionistic logic, which is useful to understand how the prover works. As it usually is for tableaux proofs, one wants to establish the fact that a formula is valid by trying to build a countermodel. In our particular case, the expansion of a branch is mirrored in a step by step construction of a Kripke model. Given a formula $\varphi$, if one branch in its tableau is open (i.e. it does not contain contradicting signed literals) then one use it to build a rooted IVK in which the root refutes $\varphi$. Conversely, if all branches of the tableau are closed, then one cannot find any world in any IVK where $\varphi$ does not hold.\\
+
+Consider the following example of a tableau proof of the intuitionistic tautology $\varphi = \neg \neg ((P \land Q) \lor (\neg(P \land Q))$
+
+\begin{center}
+    \begin{tikzcd}
+                                               & (1): F \neg \neg ((P\land Q) \lor \neg (P\land Q)) \arrow[d, no head]                 &                                             \\
+                                               & (2):T \neg ((P\land Q) \lor \neg (P \land Q)) \arrow[d, no head]                      &                                             \\
+                                               & (3):F_{C}((P \land Q) \lor \neg (P \land Q)) \arrow[d, no head]                       &                                             \\
+                                               & {(4):F_C (P \land Q), F_C (\neg (P \land Q))} \arrow[ld, no head] \arrow[rd, no head] &                                             \\
+{(5) : F_C P, T(P \land Q)} \arrow[d, no head] &                                                                                       & {(6) :F_CQ,T(P \land Q)} \arrow[d, no head] \\
+{(7) :F_CP, TP, TQ}                            &                                                                                       & {(8) :F_CQ, TP, TQ}                        
+\end{tikzcd}
+\end{center}
+
+One can read the tableau above as an attempt at building a Kripke model where the formula $\varphi$ does not hold at the root node $(1)$. The rules then become much more intuitive as (keeping in mind the translation to modal logic given above, which can be summarized as \say{$\neg$ is $\square \neg$})
+\begin{itemize}
+    \item if $\varphi$ does not hold at node $(1)$, then node $(1)$ must have at least a successor $(2)$ where $\varphi_1= \neg ((P \land Q) \lor \neg (P \land Q))$ holds,
+    \item if $\varphi_1$ holds at node $(2)$ then all of its successors must consider $(P \land Q) \lor \neg (P \land Q)$ provably false, in particular there must be some successor node $(3)$ (which may actually just be node $(2)$) which can be marked with $F_C((P \land Q) \lor \neg (P \land Q))$,
+    \item similarly to the point above, there must be a successor node $(4)$ (again, node $(2)$ itself works just as well) which can be marked with both $F_C (P \land Q)$ and $F_C (\neg(P \land Q))$,
+    \item since $F_C(P \land Q)$ holds in node $(4)$, it must be that either $(4)$ has one successor $i$ such that $i \vDash \neg P$ or it has one successor $j$ such that $j \vDash \neg Q$. Consequently one builds successor nodes $(5)$ and $(6)$ and labels them appropriately,
+    \item since $P \land Q$ holds at node $(5)$, it must be that both $P$ and $Q$ hold at all successors of $(5)$, so there must be a node $(7)$ (which again could be $(5)$ itself) which can be marked as $F_C P, TP, TQ $, so $P$ is both true and provably false in it. This is a contradiction, which means that $(4)$ cannot have successor nodes which can be marked with $F_C P$.
+    \item In a way entirely similar to the point above, considerations on node $(6)$ show that $(4)$ cannot have a successor where $F_C Q$ holds.
+    \item This means that no node in any IVK can ever be marked in the same way as $(4)$, so backtracking shows that the same holds for nodes $(3),(2)$ and $(1)$. In particular one obtains that $\neg \neg ((P \land Q) \lor \neg (P \land Q))$ is an intuitionistic validity.
+\end{itemize}
+
+In order to appreciate some other features of the proof system, one can consider the following tableau for the non-valid formula $\psi = P \lor \neg P$.
+
+\begin{center}
+\begin{tikzcd}
+(1):F (P \lor \neg P) \arrow[d, no head] \\
+{(2):FP,F(\neg P)} \arrow[d, no head]    \\
+(3): TP                                 
+\end{tikzcd}
+\end{center}
+
+The branch does not close, and this is in line with the fact that $\psi$ is not intuitionistically valid. What might seem strange at first sight is that, in passing from node $(2)$ to node $(3)$, one has to delete the signed formula $FP$. This is best understood when one switches to the Kripke model perspective. Again, consider a model where $\psi$ does not hold at node $(1)$. Then it must be that $(1)$ has a successor $(2)$ (which as above, can very well be $(1)$ itself) where both $P$ does not hold and $\neg P$ does not hold. The fact that $\neg P$ does not hold at $(2)$ just means that there is \textit{some} successor $(3)$ where $P$ holds. On the other hand, the fact that $P$ does not hold at $(2)$ does not give any guarantees on whether it holds at successors of $(2)$ or not. Therefore a model based on a frame given by the tableau, with valuation $V$ such that $V(p)=\{3\}$ is a model where $\psi$ holds at the root node. This shows that $\psi$ is not an intuitionistic validity. Note that, in case more than one $F$ formula is present at a tableau node, it may be necessary to duplicate tableaux and check whether at least one of the possible expansions leads to a closed tableau.
