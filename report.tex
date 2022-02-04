@@ -1,20 +1,26 @@
 \documentclass[12pt,a4paper]{article}
 \input{latexmacros.tex}
+\usepackage{dirtytalk}
+\usepackage{amsmath,caption,booktabs}
+\usepackage{tikz-cd}
 
-\title{My Report}
-\author{Me}
+\title{Intuitionistic Propositional Logic Tableaux in
+Haskell}
+\author{Valentino Filipetto \& Gian Marco Osso}
 \date{\today}
-\hypersetup{pdfauthor={Me}, pdftitle={My Report}}
+\hypersetup{pdfauthor={Valentino Filipetto \& Gian Marco Osso}, pdftitle={My Report}}
 
 \begin{document}
 
 \maketitle
 
 \begin{abstract}
-We give a toy example of a report in \emph{literate programming} style.
-The main advantage of this is that source code and documentation can
-be written and presented next to each other.
-We use the listings package to typeset Haskell source code nicely.
+We present an implementation in Haskell of a tableau-style proof system for the
+implication-free fragment of intuitionistic propositional logic, drawing inspiration from a
+preexisting implementation of classical first-order logic proposed here [3]. We also propose
+a tableau prover for classical propositional logic, obtained via a minor modification of
+the original one. These two can be used in conjunction to have experimental evidence of
+Glivenko’s theorem.
 \end{abstract}
 
 \vfill
@@ -23,21 +29,14 @@ We use the listings package to typeset Haskell source code nicely.
 
 \clearpage
 
-% We include one file for each section. The ones containing code should
-% be called something.lhs and also mentioned in the .cabal file.
-
-\input{Howto.tex}
+\input{Theory.tex}
 
 \input{lib/Main.lhs}
 
-\input{test/simpletests.lhs}
-
-\input{Profiling.tex}
-
 \input{Conclusion.tex}
 
-\addcontentsline{toc}{section}{Bibliography}
-\bibliographystyle{alpha}
-\bibliography{references.bib}
+\newpage
+
+\input{Bib.tex}
 
 \end{document}
